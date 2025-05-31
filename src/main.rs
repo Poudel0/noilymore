@@ -54,7 +54,7 @@ async fn main() -> Result<()> {
         .layer(CorsLayer::permissive())
         .with_state(state);
 
-    let addr = format!("127.0.0.1:{}", config.port);
+    let addr = format!("0.0.0.0:{}", config.port);
     info!("Canvas Wars server starting on {}", addr);
     info!("Game available at: http://{}", addr);
     
