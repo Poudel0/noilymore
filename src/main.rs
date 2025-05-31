@@ -37,7 +37,7 @@ async fn main() -> Result<()> {
     
     let config = Arc::new(Config::new());
     let database = Arc::new(Database::new(&config.database_url).await?);
-    let game_manager = Arc::new(GameManager::new(database.clone()));
+    let game_manager = Arc::new(GameManager::new(database.clone(), config.clone()));
     
     let state = AppState {
         game_manager,
@@ -55,7 +55,7 @@ async fn main() -> Result<()> {
         .with_state(state);
 
     let addr = format!("0.0.0.0:{}", config.port);
-    info!("Canvas Wars server starting on {}", addr);
+    info!("Server starting on {}", addr);
     info!("Game available at: http://{}", addr);
     
     let listener = TcpListener::bind(&addr).await?;
@@ -65,14 +65,18 @@ async fn main() -> Result<()> {
 }
 
 // Serve the frontend HTML file
-async fn serve_frontend() -> Result<Html<String>, StatusCode> {
-    match fs::read_to_string("index.html").await {
-        Ok(content) => Ok(Html(content)),
-        Err(e) => {
-            warn!("Failed to read index.html: {}", e);
-            Err(StatusCode::NOT_FOUND)
-        }
-    }
+// async fn serve_frontend() -> Result<Html<String>, StatusCode> {
+//     match fs::read_to_string("./index.html").await {
+//         Ok(content) => Ok(Html(content)),
+//         Err(e) => {
+//             warn!("Failed to read index.html: {}", e);
+//             Err(StatusCode::NOT_FOUND)
+//         }
+//     }
+// }
+
+async fn serve_frontend() -> Html<&'static str> {
+    Html(include_str!("../index.html"))
 }
 
 async fn health_handler() -> Json<Value> {

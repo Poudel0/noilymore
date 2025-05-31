@@ -105,4 +105,19 @@ CREATE TABLE room_stats (
     winner_player_id INTEGER,
     FOREIGN KEY (room_id) REFERENCES rooms(id),
     FOREIGN KEY (winner_player_id) REFERENCES room_players(id)
-); 
+);
+
+  CREATE TABLE game_results (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        room_id TEXT NOT NULL,
+        winner INTEGER,
+        duration_seconds INTEGER,
+        final_score_0 INTEGER,
+        final_score_1 INTEGER,
+        final_width INTEGER,
+        final_height INTEGER,
+        total_clicks INTEGER,
+        powerups_used INTEGER,
+        end_reason TEXT,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );

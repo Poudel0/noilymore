@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Canvas Wars</title>
+    <title>no ily more</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/1.9.10/htmx.min.js"></script>
     <style>
       * {
@@ -286,7 +286,7 @@
     <div class="container">
       <!-- Welcome Screen -->
       <div id="welcome-screen" class="screen active">
-        <h1>🎮 Canvas Wars</h1>
+        <h1>🎮 no! ily more</h1>
         <form id="join-form">
           <div class="form-group">
             <label for="player-name">Enter your name:</label>
@@ -337,7 +337,7 @@
 
       <!-- Game Screen -->
       <div id="game-screen" class="screen">
-        <h1>⚔️ Canvas Wars</h1>
+        <h1>⚔️ no! ily more</h1>
 
         <div class="game-info">
           <div class="player-info">
@@ -402,7 +402,7 @@
         ></div>
 
         <button class="btn btn-secondary" onclick="surrender()">
-          🏳️ Accept they love you more
+          🏳️ Accept you love them less
         </button>
       </div>
 
@@ -1126,7 +1126,7 @@
         textArea.select();
         try {
           document.execCommand("copy");
-          alert("Link copied to clipboard!");
+          //alert("Link copied to clipboard!");
         } catch (err) {
           alert("Failed to copy link. Please copy manually.");
         }
@@ -1201,9 +1201,7 @@
         }, 5000);
       }
 
-      function generatePlayerId() {
-        return Math.random().toString(36).substr(2, 9);
-      }
+      
 
       function updateGameState(state) {
         gameState.lastGameState = state;

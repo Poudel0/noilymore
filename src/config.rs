@@ -26,7 +26,7 @@ impl Config {
                 .parse()
                 .unwrap_or(8080),
             database_url: env::var("DATABASE_URL")
-                .unwrap_or_else(|_| "sqlite:canvas_wars.db".to_string()), // Simple filename in current directory
+                .unwrap_or_else(|_| "sqlite:Database.db".to_string()), // Simple filename in current directory
             max_concurrent_rooms: env::var("MAX_CONCURRENT_ROOMS")
                 .unwrap_or_else(|_| "1000".to_string())
                 .parse()

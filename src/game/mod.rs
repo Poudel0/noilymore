@@ -31,6 +31,7 @@ pub struct GameManager {
     database: Arc<Database>,
     powerup_system: PowerupSystem,
     growth_system: CanvasGrowthSystem,
+    config: Arc<Config>,
 }
 
 pub struct ActiveRoom {
@@ -46,7 +47,7 @@ pub struct ActiveRoom {
 }
 
 impl GameManager {
-    pub fn new(database: Arc<Database>) -> Self {
+    pub fn new(database: Arc<Database>, config: Arc<Config>) -> Self {
         let rooms = Arc::new(DashMap::new());
         
         // Start cleanup task
@@ -65,24 +66,37 @@ impl GameManager {
             database,
             powerup_system: PowerupSystem::new(),
             growth_system: CanvasGrowthSystem::new(),
+            config,
         }
     }
 
     pub async fn create_room(&self) -> Result<String> {
-        let room_code = Uuid::new_v4().to_string();
+        let room_code = Uuid::new_v4().to_string().chars()
+        .filter(|c| c.is_alphanumeric())
+        .take(8)
+        .collect::<String>()
+        .to_uppercase();
         let db_room_id = self.database.insert_room(&room_code, "waiting", None).await?;
-        let mut canvas = Canvas::new(16, 16);
-        for y in 0..16 {
-            for x in 0..16 {
-                let rand_player: Option<PlayerId> = match rand::random::<u8>() % 3 {
-                    0 => Some(0),
-                    1 => Some(1),
-                    _ => None,
-                };
-                if let Some(pid) = rand_player {
-                    canvas.set_cell(x, y, pid);
-                }
-            }
+        let (width, height) = self.config.canvas_config.initial_size;
+        let mut canvas = Canvas::new(width, height);
+        let total_cells = (width * height) as usize;
+        let half = total_cells / 2;
+        let mut assignments = vec![0u8; half];
+        assignments.extend(vec![1u8; half]);
+        if assignments.len() < total_cells {
+            assignments.push(255u8); // 255 = unclaimed
+        }
+        use rand::seq::SliceRandom;
+        let mut rng = rand::thread_rng();
+        assignments.shuffle(&mut rng);
+        for (i, value) in assignments.into_iter().enumerate() {
+            let x = (i as u32) % width;
+            let y = (i as u32) / width;
+            if value == 0 {
+                canvas.set_cell(x, y, 0);
+            } else if value == 1 {
+                canvas.set_cell(x, y, 1);
+            } // else leave unclaimed
         }
         let room = ActiveRoom {
             room_id: room_code.clone(),
@@ -95,7 +109,7 @@ impl GameManager {
             last_update: std::time::SystemTime::now(),
             growth_tracker: CanvasGrowth {
                 last_expansion: Instant::now(),
-                current_size: (16, 16),
+                current_size: (width, height),
                 expansion_count: 0,
             },
         };
