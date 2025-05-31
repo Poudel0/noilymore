@@ -22,9 +22,9 @@ impl Config {
     pub fn new() -> Self {
         let selff = Self {
             port: env::var("PORT")
-                .unwrap_or_else(|_| "3000".to_string())
+                .unwrap_or_else(|_| "8080".to_string())
                 .parse()
-                .unwrap_or(3000),
+                .unwrap_or(8080),
             database_url: env::var("DATABASE_URL")
                 .unwrap_or_else(|_| "sqlite:canvas_wars.db".to_string()), // Simple filename in current directory
             max_concurrent_rooms: env::var("MAX_CONCURRENT_ROOMS")
