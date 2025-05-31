@@ -1,2 +1,5 @@
 /target
 *.db
+.ipynb
+001_initial.sql
+dbtest.ipynb

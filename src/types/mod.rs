@@ -94,17 +94,6 @@ pub struct GridChange {
 }
 
 #[derive(Debug, Clone)]
-pub struct ActiveRoom {
-    pub room_id: String,
-    pub canvas: Canvas,
-    pub players: [Option<PlayerState>; 2],
-    pub powerup_manager: PowerupManager,
-    pub game_status: GameStatus,
-    pub last_update: std::time::SystemTime,
-    pub growth_tracker: CanvasGrowth,
-}
-
-#[derive(Debug, Clone)]
 pub struct Canvas {
     pub width: u32,
     pub height: u32,

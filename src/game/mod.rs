@@ -33,6 +33,18 @@ pub struct GameManager {
     growth_system: CanvasGrowthSystem,
 }
 
+pub struct ActiveRoom {
+    pub room_id: String, // room_code
+    pub db_room_id: Option<i64>, // new: DB id
+    pub canvas: Canvas,
+    pub players: [Option<PlayerState>; 2],
+    pub db_player_ids: [Option<i64>; 2], // new: DB player ids
+    pub powerup_manager: PowerupManager,
+    pub game_status: GameStatus,
+    pub last_update: std::time::SystemTime,
+    pub growth_tracker: CanvasGrowth,
+}
+
 impl GameManager {
     pub fn new(database: Arc<Database>) -> Self {
         let rooms = Arc::new(DashMap::new());
@@ -57,10 +69,9 @@ impl GameManager {
     }
 
     pub async fn create_room(&self) -> Result<String> {
-        let room_id = Uuid::new_v4().to_string();
+        let room_code = Uuid::new_v4().to_string();
+        let db_room_id = self.database.insert_room(&room_code, "waiting", None).await?;
         let mut canvas = Canvas::new(16, 16);
-        let mut rng = rand::thread_rng();
-        
         for y in 0..16 {
             for x in 0..16 {
                 let rand_player: Option<PlayerId> = match rand::random::<u8>() % 3 {
@@ -73,11 +84,12 @@ impl GameManager {
                 }
             }
         }
-                
         let room = ActiveRoom {
-            room_id: room_id.clone(),
+            room_id: room_code.clone(),
+            db_room_id: Some(db_room_id),
             canvas,
             players: [None, None],
+            db_player_ids: [None, None],
             powerup_manager: PowerupManager::new(),
             game_status: GameStatus::WaitingForPlayers,
             last_update: std::time::SystemTime::now(),
@@ -87,20 +99,15 @@ impl GameManager {
                 expansion_count: 0,
             },
         };
-
-        self.rooms.insert(room_id.clone(), Arc::new(RwLock::new(room)));
-        info!("Created room: {}", room_id);
-        
-        Ok(room_id)
+        self.rooms.insert(room_code.clone(), Arc::new(RwLock::new(room)));
+        info!("Created room: {} (db id: {})", room_code, db_room_id);
+        Ok(room_code)
     }
 
-    pub async fn join_room(&self, room_id: &str, player_name: String) -> Result<(PlayerId, GameState)> {
-        let room_lock = self.rooms.get(room_id)
+    pub async fn join_room(&self, room_code: &str, player_name: String) -> Result<(PlayerId, GameState)> {
+        let room_lock = self.rooms.get(room_code)
             .ok_or_else(|| anyhow::anyhow!("Room not found"))?;
-        
         let mut room = room_lock.write().await;
-        
-        // Find available player slot
         let player_id = if room.players[0].is_none() {
             0
         } else if room.players[1].is_none() {
@@ -108,28 +115,28 @@ impl GameManager {
         } else {
             return Err(anyhow::anyhow!("Room is full"));
         };
-
+        // Insert into room_players table
+        let db_room_id = room.db_room_id.ok_or_else(|| anyhow::anyhow!("Room DB id missing"))?;
+        let db_player_id = self.database.insert_room_player(db_room_id, None, &player_name, player_id, true).await?;
+        // Store DB player id
+        room.db_player_ids[player_id as usize] = Some(db_player_id);
         let player_state = PlayerState {
-            id: player_id,
+            id: player_id as u8,
             name: player_name,
             score: 0,
             powerup_cooldowns: std::collections::HashMap::new(),
             joined_at: chrono::Utc::now().timestamp() as u64,
         };
-
         room.players[player_id as usize] = Some(player_state.clone());
         room.last_update = std::time::SystemTime::now();
-
         // Start game if both players joined
         if room.players[0].is_some() && room.players[1].is_some() {
             room.game_status = GameStatus::Active;
-            info!("Game started in room: {}", room_id);
-            self.broadcast_to_room(room_id, ServerMessage::GameStarted).await?;
+            info!("Game started in room: {}", room_code);
+            self.broadcast_to_room(room_code, ServerMessage::GameStarted).await?;
         }
-
         let game_state = self.room_to_game_state(&room);
-        
-        Ok((player_id, game_state))
+        Ok((player_id as u8, game_state))
     }
 
     pub async fn get_room_state(&self, room_id: &str) -> Option<GameState> {
@@ -174,6 +181,11 @@ impl GameManager {
                     old_owner,
                     new_owner: player_id,
                 });
+                // Log move to DB
+                if let (Some(db_room_id), Some(db_player_id)) = (room.db_room_id, room.db_player_ids[player_id as usize]) {
+                    let move_data = serde_json::json!({"x": x, "y": y, "old_owner": old_owner, "new_owner": player_id});
+                    let _ = self.database.insert_move(db_room_id, db_player_id, "tap", Some(&move_data.to_string())).await;
+                }
             }
         }
 
@@ -219,11 +231,17 @@ impl GameManager {
         let result = self.powerup_system.execute_powerup(
             powerup_id,
             player_id,
-            &mut room,
+            &mut *room,
         ).await?;
 
         room.last_update = std::time::SystemTime::now();
-        
+        // Log powerup usage
+        if let (Some(db_room_id), Some(db_player_id)) = (room.db_room_id, room.db_player_ids[player_id as usize]) {
+            let _ = self.database.insert_powerup_usage(db_room_id, db_player_id, powerup_id, Some(&format!("{:?}", result))).await;
+            // Log commentary
+            let msg = format!("Player {} used powerup {}", player_id, powerup_id);
+            let _ = self.database.insert_commentary_log(db_room_id, "powerup", &msg, Some(db_player_id)).await;
+        }
         Ok(result)
     }
 
@@ -245,6 +263,17 @@ impl GameManager {
 
         // Save game result
         self.save_game_result(&room).await?;
+        
+        // Log commentary and stats
+        if let Some(db_room_id) = room.db_room_id {
+            let msg = format!("Player {} surrendered", player_id);
+            let _ = self.database.insert_commentary_log(db_room_id, "surrender", &msg, room.db_player_ids[player_id as usize]).await;
+            // Insert room_stats (basic example)
+            let (score_0, score_1) = room.canvas.get_scores();
+            let total_moves = (score_0 + score_1) as i64;
+            let winner_db_id = winner.and_then(|w| room.db_player_ids[w as usize]);
+            let _ = self.database.insert_room_stats(db_room_id, Some(total_moves), None, None, None, winner_db_id).await;
+        }
         
         info!("Player {} surrendered in room {}", player_id, room_id);
         

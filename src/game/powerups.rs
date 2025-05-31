@@ -3,6 +3,7 @@ use std::time::Instant;
 use tracing::info;
 
 use crate::types::*;
+use super::ActiveRoom;
 
 pub struct PowerupSystem {
     powerups: std::collections::HashMap<String, Box<dyn PowerupTrait + Send + Sync>>,
