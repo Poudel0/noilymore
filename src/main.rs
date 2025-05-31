@@ -66,7 +66,7 @@ async fn main() -> Result<()> {
 
 // Serve the frontend HTML file
 async fn serve_frontend() -> Result<Html<String>, StatusCode> {
-    match fs::read_to_string("indexc.html").await {
+    match fs::read_to_string("index.html").await {
         Ok(content) => Ok(Html(content)),
         Err(e) => {
             warn!("Failed to read index.html: {}", e);
